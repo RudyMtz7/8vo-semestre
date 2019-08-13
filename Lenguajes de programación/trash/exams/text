@@ -1,0 +1,231 @@
+---------------------------first----------------------------------------------
+------------------------------------------------------------------------------
+
+import java.util.ArrayList;
+import java.util.Random;
+
+public class Nation extends Thread{
+    int actualRice = 0;
+    int selledRice = 0;
+    int producedRice = 0;
+    int recievedRice = 0;
+    int id;
+
+    String name;
+    int years;
+
+    ArrayList<String> transactions = new ArrayList<String>();
+
+    ArrayList<Nation> nations = new ArrayList<Nation>();
+
+
+    public Nation(String name, int years, int id){
+        this.name = name;
+        this.years = years;
+        this.id = id;
+    }
+
+
+    public synchronized void produceRice(){
+        Random random = new Random();
+        int randRice = random.nextInt(10) + 1;
+        actualRice += randRice;
+        producedRice +=randRice;
+        String transaction = this.name + " produced " + randRice + ", now has " + actualRice;
+
+        System.out.println(transaction);
+
+    }
+
+    public synchronized void sendRice(int rice){
+        recievedRice += rice;
+        actualRice += rice;
+        System.out.println(this.name + " recieved " + rice + ", now has " + actualRice);
+    }
+
+    public synchronized void sellRice(){
+        Random random = new Random();
+        int randRice = random.nextInt(3) + 1;
+        int randNation = random.nextInt(3);
+        Nation theOneISellTo = nations.get(randNation);
+//        System.out.println(this.name + " is about to sell " + randRice + " out of " + actualRice);
+        if((actualRice - randRice) <= 0 ){
+
+            System.out.println(this.name + " sold all " + actualRice + " to " + theOneISellTo.gName());
+            theOneISellTo.sendRice(actualRice);
+
+            selledRice += actualRice;
+            actualRice = 0;
+        } else {
+            System.out.println(this.name + " sold " + randRice + " to " + theOneISellTo.gName());
+            theOneISellTo.sendRice(randRice);
+            actualRice -= randRice;
+            selledRice += randRice;
+        }
+
+
+    }
+
+    @Override
+    public void run() {
+        Random random = new Random();
+        for(int i = 0; i<years; i++ ){
+            this.produceRice();
+            this.sellRice();
+
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+    public int getProducedRice() {
+        return producedRice;
+    }
+
+    public int getActualRice() {
+        return actualRice;
+    }
+
+    public void setActualRice(int actualRice) {
+        this.actualRice = actualRice;
+    }
+
+    public int getSelledRice() {
+        return selledRice;
+    }
+
+    public void setSelledRice(int selledRice) {
+        this.selledRice = selledRice;
+    }
+
+    public ArrayList<Nation> getNations() {
+        return nations;
+    }
+
+    public void setNations(ArrayList<Nation> nations) {
+        this.nations = nations;
+    }
+
+    public String gName(){
+        return name;
+    }
+
+
+    public static void main(String[] args) throws InterruptedException{
+        ArrayList<Nation> nations = new ArrayList<Nation>();
+
+        Nation nation1 = new Nation("Wakanda",  3, 1);
+        Nation nation2 = new Nation("Queretaro",3, 2);
+        Nation nation3 = new Nation("Irapuato", 3, 3);
+
+        nations.add(nation1);
+        nations.add(nation2);
+        nations.add(nation3);
+
+        nation1.setNations(nations);
+        nation2.setNations(nations);
+        nation3.setNations(nations);
+
+
+        Thread t1;
+        Thread t2;
+        Thread t3;
+
+        t1 = new Thread(nation1);
+        t2 = new Thread(nation2);
+        t3 = new Thread(nation3);
+
+        t1.start();
+        t2.start();
+        t3.start();
+
+        t1.join();
+        t2.join();
+        t3.join();
+
+        System.out.println("---------------------------------------");
+        System.out.println(nation1.gName() + " has " + nation1.getActualRice());
+        System.out.println(nation2.gName() + " has " + nation2.getActualRice());
+        System.out.println(nation3.gName() + " has " + nation3.getActualRice());
+
+
+    }
+}
+
+------------------------------------------------------------------------------
+---------------------------first----------------------------------------------
+
+
+#include "../common/book.h"
+#define imin(a,b) (a<b?a:b)
+const int N = 33 * 1024;
+const int threadsPerBlock = 256;
+const int blocksPerGrid = imin( 32, (N+threadsPerBlock-1) / threadsPerBlock );
+
+__global__ void dot( float *a, float *b, float *c ) {
+  __shared__ float cache[threadsPerBlock];
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  int cacheIndex = threadIdx.x;
+  float temp = 0;
+  while (tid < N) {
+    temp += a[tid] * b[tid];
+    tid += blockDim.x * gridDim.x;
+  }
+  // set the cache values
+  cache[cacheIndex] = temp;
+  // synchronize threads in this block
+  __syncthreads();
+  // for reductions, threadsPerBlock must be a power of 2 // because of the following code
+  int i = blockDim.x/2;
+  while (i != 0) {
+  if (cacheIndex < i)
+  cache[cacheIndex] += cache[cacheIndex + i];
+  __syncthreads();
+  i /= 2;
+  }
+  if (cacheIndex == 0) c[blockIdx.x] = cache[0];
+}
+
+int main( void ) {
+  float *a, *b, c, *partial_c;
+  float *dev_a, *dev_b, *dev_partial_c;
+      // allocate memory on the CPU side
+  a = (float*)malloc( N*sizeof(float) );
+  b = (float*)malloc( N*sizeof(float) );
+  partial_c = (float*)malloc( blocksPerGrid*sizeof(float) );
+      // allocate the memory on the GPU
+  HANDLE_ERROR( cudaMalloc( (void**)&dev_a, N*sizeof(float) ) );
+  HANDLE_ERROR( cudaMalloc( (void**)&dev_b, N*sizeof(float) ) );
+  HANDLE_ERROR( cudaMalloc( (void**)&dev_partial_c, blocksPerGrid*sizeof(float) ) );
+      // fill in the host memory with data
+  for (int i=0; i<N; i++) {
+    a[i] = i;
+    b[i] = i*2;
+  }
+      // copy the arrays ‘a’ and ‘b’ to the GPU
+  HANDLE_ERROR( cudaMemcpy( dev_a, a, N*sizeof(float), cudaMemcpyHostToDevice ) );
+  HANDLE_ERROR( cudaMemcpy( dev_b, b, N*sizeof(float), cudaMemcpyHostToDevice ) );
+
+  dot<<<blocksPerGrid,threadsPerBlock>>>( dev_a, dev_b, dev_partial_c );
+         // copy the array 'c' back from the GPU to the CPU
+  HANDLE_ERROR( cudaMemcpy( partial_c, dev_partial_c, blocksPerGrid*sizeof(float), cudaMemcpyDeviceToHost ) );
+        // finish up on the CPU side
+  c = 0;
+  for (int i=0; i<blocksPerGrid; i++) {
+    c += partial_c[i];
+  }
+  #define sum_squares(x) (x*(x+1)*(2*x+1)/6)
+  printf( “Does GPU value %.6g = %.6g?\n”, c,2 * sum_squares( (float)(N - 1) ) );
+  // free memory on the GPU side
+  cudaFree( dev_a );
+  cudaFree( dev_b );
+  cudaFree( dev_partial_c );
+  // free memory on the CPU side
+  free( a );
+  free( b );
+  free( partial_c );
+}
